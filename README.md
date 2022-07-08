@@ -3,6 +3,7 @@
    ( you should have mysql_config available in $PATH)
 
 2. Load data
+  2.1 Load data - original method
    * create database
      `mysqladmin create tpcc1000`
    * create tables
@@ -16,6 +17,15 @@
        ref. tpcc_load --help for all options
      - load data in parallel 
        check load.sh script
+  2.2 Load data - modified
+   * create database
+     mysql> create database tpcc;
+     mysql> use tpcc
+   * create tables
+     mysql> source create_table.sql -- or other files
+   * populate data
+     - tpcc_load -h localhost -P 28039 -S path-to-my.sock -d tpcc -u root -p password -w 10 -l 1/2/3/4 -m 1 -n 10
+                 |hostname|port|socket|database name|user|password|WAREHOUSES|part,e.g. 1 for item|minWare|maxWare|
 
 3. Start benchmark
    * `./tpcc_start -h127.0.0.1 -P3306 -dtpcc1000 -uroot -w1000 -c32 -r10 -l10800`
