@@ -73,7 +73,7 @@ create table history (
   h_date   timestamp,
   h_amount decimal(6,2),
   h_data   varchar(24),
-  hist_id  integer primary key,
+  hist_id  integer primary key
 ) dbpartition by hash(h_c_w_id);
 
 drop table if exists new_orders;

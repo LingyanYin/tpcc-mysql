@@ -30,6 +30,7 @@ MYSQL_STMT *stmt[11];
 /* Global SQL Variables */
 char            timestamp[81];
 long            count_ware;
+int hist_id = 1;
 int             fd, seed;
 
 int             particle_flg = 0; /* "1" means particle mode */
@@ -39,7 +40,7 @@ long            max_ware;
 
 /* Global Variables */
 int             i;
-int             option_debug = 0;	/* 1 if generating debug output    */
+int             option_debug = 1;	/* 1 if generating debug output    */
 int             is_local = 1;           /* "1" mean local */
 
 #define DB_STRING_MAX 51
@@ -74,6 +75,7 @@ main(argc, argv)
 	char           db_string[DB_STRING_MAX];
 	char	       db_user[DB_STRING_MAX];
 	char	       db_password[DB_STRING_MAX];
+	char	       db_socket[DB_STRING_MAX];
         int            port= 3306;
 
 	int i,c;
@@ -89,11 +91,15 @@ main(argc, argv)
 
   /* Parse args */
 
-    while ( (c = getopt(argc, argv, "h:P:d:u:p:w:l:m:n:")) != -1) {
+    while ( (c = getopt(argc, argv, "h:P:S:d:u:p:w:l:m:n:")) != -1) {
         switch (c) {
         case 'h':
             printf ("option h with value '%s'\n", optarg);
             strncpy(connect_string, optarg, DB_STRING_MAX);
+            break;
+        case 'S':
+            printf ("option S with value '%s'\n", optarg);
+            strncpy(db_socket, optarg, DB_STRING_MAX);
             break;
         case 'd':
             printf ("option d with value '%s'\n", optarg);
@@ -196,10 +202,10 @@ main(argc, argv)
 
 	if(is_local==1){
 	    /* exec sql connect :connect_string; */
-	    resp = mysql_real_connect(mysql, "localhost", db_user, db_password, db_string, port, NULL, 0);
+	    resp = mysql_real_connect(mysql, "localhost", db_user, db_password, db_string, port, db_socket, 0);
 	}else{
 	    /* exec sql connect :connect_string USING :db_string; */
-	    resp = mysql_real_connect(mysql, connect_string, db_user, db_password, db_string, port, NULL, 0);
+	    resp = mysql_real_connect(mysql, connect_string, db_user, db_password, db_string, port, db_socket, 0);
 	}
 
 	if(resp) {
@@ -215,39 +221,52 @@ main(argc, argv)
 	    if(!stmt[i]) goto Error_SqlCall_close;
 	}
 
+  printf("before mysql_stmt_prepare \n");
+
 	if( mysql_stmt_prepare(stmt[0],
 			       "INSERT INTO item values(?,?,?,?,?)",
 			       34) ) goto Error_SqlCall_close;
+  printf("item finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[1],
 			       "INSERT INTO warehouse values(?,?,?,?,?,?,?,?,?)",
 			       47) ) goto Error_SqlCall_close;
+  printf("warehouse finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[2],
 			       "INSERT INTO stock values(?,?,?,?,?,?,?,?,?,?,?,?,?,0,0,0,?)",
 			       59) ) goto Error_SqlCall_close;
+  printf("stock finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[3],
 			       "INSERT INTO district values(?,?,?,?,?,?,?,?,?,?,?)",
 			       50) ) goto Error_SqlCall_close;
+  printf("district finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[4],
 			       "INSERT INTO customer values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 10.0, 1, 0,?)",
 			       76) ) goto Error_SqlCall_close;
+  printf("customer finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[5],
-			       "INSERT INTO history values(?,?,?,?,?,?,?,?)",
-			       43) ) goto Error_SqlCall_close;
+			       "INSERT INTO history values(?,?,?,?,?,?,?,?,?)",
+			       45) ) goto Error_SqlCall_close;
+  printf("history finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[6],
 			       "INSERT INTO orders values(?,?,?,?,?,NULL,?, 1)",
 			       46) ) goto Error_SqlCall_close;
+  printf("orders finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[7],
 			       "INSERT INTO new_orders values(?,?,?)",
 			       36) ) goto Error_SqlCall_close;
+  printf("new_orders finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[8],
 			       "INSERT INTO orders values(?,?,?,?,?,?,?, 1)",
 			       43) ) goto Error_SqlCall_close;
+  printf("orders2 finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[9],
 			       "INSERT INTO order_line values(?,?,?,?,?,?, NULL,?,?,?)",
 			       54) ) goto Error_SqlCall_close;
+  printf("order_line finished mysql_stmt_prepare \n");
 	if( mysql_stmt_prepare(stmt[10],
 			       "INSERT INTO order_line values(?,?,?,?,?,?,?,?,?,?)",
 			       50) ) goto Error_SqlCall_close;
+  printf("order_line2 finished mysql_stmt_prepare \n");
 
 
 	/* exec sql begin transaction; */
@@ -403,6 +422,8 @@ retry:
 				printf(" %ld\n", i_id);
 		}
 	}
+
+	printf("Load is done, now commiting \n");
 
 	/* EXEC SQL COMMIT WORK; */
 	if( mysql_commit(mysql) ) goto sqlerr;
@@ -856,7 +877,7 @@ retry:
     if (retried)
         printf("Retrying ...\n");
     retried = 1;
-	for (c_id = 1; c_id <= CUST_PER_DIST; c_id++) {
+	for (c_id = 1; c_id <= CUST_PER_DIST; c_id++, hist_id++) {
 
 		/* Generate Customer Data */
 		c_d_id = d_id;
@@ -962,7 +983,7 @@ retry:
 				       :c_d_id,:c_w_id, :timestamp,
 				       :h_amount,:h_data);*/
 
-		memset(param, 0, sizeof(MYSQL_BIND) * 8); /* initialize */
+		memset(param, 0, sizeof(MYSQL_BIND) * 9); /* initialize */
 		param[0].buffer_type = MYSQL_TYPE_LONG;
 		param[0].buffer = &c_id;
 		param[1].buffer_type = MYSQL_TYPE_LONG;
@@ -981,12 +1002,14 @@ retry:
 		param[7].buffer_type = MYSQL_TYPE_STRING;
 		param[7].buffer = h_data;
 		param[7].buffer_length = strlen(h_data);
+		param[8].buffer_type = MYSQL_TYPE_LONG;
+    param[8].buffer = &hist_id;
 		if( mysql_stmt_bind_param(stmt[5], param) ) goto sqlerr;
 		if( try_stmt_execute(stmt[5]) ) goto retry;
 
 		if (option_debug)
-			printf("CID = %ld, LST = %s, P# = %s\n",
-			       c_id, c_last, c_phone);
+			printf("CID = %ld, LST = %s, P# = %s, hist_id = %ld \n",
+			       c_id, c_last, c_phone, hist_id);
 		if (!(c_id % 100)) {
  			printf(".");
 			fflush(stdout);
